@@ -1,124 +1,83 @@
-import { useState, useEffect } from "react";
-import { db } from "./firebase";
-import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
-import "./App.css";
+import React, { useState, useEffect } from 'react';
+import { db } from './firebase'; // Ensure your firebase.js exports 'db'
+import { collection, addDoc, onSnapshot, query, orderBy } from "firebase/firestore";
 
 function App() {
-  const [note, setNote] = useState("");
-  const [notes, setNotes] = useState([]);
+  // 1. State for Form Inputs
+  const [name, setName] = useState("");
+  const [course, setCourse] = useState("");
+  const [yearLevel, setYearLevel] = useState("1");
   
-  const [editingId, setEditingId] = useState(null);
-  const [editText, setEditText] = useState("");
-  
-  const notesCollection = collection(db, "notes");
+  // 2. State for Displaying Records
+  const [students, setStudents] = useState([]);
 
-  const addNote = async () => {
-    if (note.trim() === "") return;
-    await addDoc(notesCollection, {
-      text: note,
-      createdAt: new Date().toISOString() 
-    });
-    setNote("");
-    fetchNotes(); 
-  };
-
-  const fetchNotes = async () => {
-    const data = await getDocs(notesCollection);
-    const fetchedNotes = data.docs.map((doc) => ({
-      ...doc.data(),
-      id: doc.id
-    })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
-    setNotes(fetchedNotes);
-  };
-
-  const saveEdit = async (id) => {
-    const noteDoc = doc(db, "notes", id);
-    await updateDoc(noteDoc, { text: editText });
-    setEditingId(null); 
-    fetchNotes(); 
-  };
-
-  const deleteNote = async (id) => {
-    const noteDoc = doc(db, "notes", id);
-    await deleteDoc(noteDoc);
-    fetchNotes(); 
-  };
-
+  // 3. Effect to Retrieve Records from Firestore in Real-time
   useEffect(() => {
-    fetchNotes();
+    const q = query(collection(db, "students"), orderBy("name", "asc"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const studentArr = [];
+      querySnapshot.forEach((doc) => {
+        studentArr.push({ ...doc.data(), id: doc.id });
+      });
+      setStudents(studentArr);
+    });
+    return () => unsubscribe();
   }, []);
 
-  const formatDate = (isoString) => {
-    if (!isoString) return "";
-    const options = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-    return new Date(isoString).toLocaleDateString(undefined, options);
+  // 4. Function to Save Data to Firestore
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (name !== "" && course !== "") {
+      await addDoc(collection(db, "students"), {
+        name: name,
+        course: course,
+        yearLevel: yearLevel,
+      });
+      // Clear fields after saving
+      setName("");
+      setCourse("");
+    }
   };
 
   return (
-    <div className="app-wrapper">
-      <div className="glass-container">
-        <h1 className="gradient-text">Cloud Notes</h1>
-        <p className="subtitle">Sync your thoughts instantly.</p>
-        
-        <div className="input-section">
-          <input
-            type="text"
-            placeholder="Type a new note..."
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            className="sleek-input"
-          />
-          <button onClick={addNote} className="gradient-btn">
-            Save Note
-          </button>
+    <div style={{ padding: '20px' }}>
+      <h1>Student Record Form</h1>
+      
+      {/* --- INPUT FORM --- */}
+      <form onSubmit={handleSave} style={{ marginBottom: '30px' }}>
+        <div>
+          <label>Name: </label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full Name" required />
         </div>
+        <br />
+        <div>
+          <label>Course: </label>
+          <input value={course} onChange={(e) => setCourse(e.target.value)} placeholder="Course Name" required />
+        </div>
+        <br />
+        <div>
+          <label>Year Level: </label>
+          <select value={yearLevel} onChange={(e) => setYearLevel(e.target.value)}>
+            <option value="1">1st Year</option>
+            <option value="2">2nd Year</option>
+            <option value="3">3rd Year</option>
+            <option value="4">4th Year</option>
+          </select>
+        </div>
+        <br />
+        <button type="submit">Save Student</button>
+      </form>
 
-        <div className="notes-list">
-          {notes.length === 0 ? (
-            <p className="empty-text">No notes yet. Start typing!</p>
-          ) : (
-            notes.map((n) => (
-              <div className="note-card" key={n.id}>
-                {editingId === n.id ? (
-                  <div className="edit-section">
-                    <input 
-                      type="text" 
-                      value={editText} 
-                      onChange={(e) => setEditText(e.target.value)} 
-                      className="sleek-input edit-input"
-                      autoFocus
-                    />
-                    <button onClick={() => saveEdit(n.id)} className="save-edit-btn">Save</button>
-                    <button onClick={() => setEditingId(null)} className="cancel-btn">Cancel</button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="note-content">
-                      <p className="note-text">{n.text}</p>
-                      <span className="timestamp">{formatDate(n.createdAt)}</span>
-                    </div>
-                    <div className="action-buttons">
-                      <button 
-                        onClick={() => {
-                          setEditingId(n.id);
-                          setEditText(n.text);
-                        }} 
-                        className="edit-btn"
-                      >
-                        Edit
-                      </button>
-                      <button onClick={() => deleteNote(n.id)} className="delete-btn">
-                        Delete
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      {/* --- DISPLAY SECTION --- */}
+      <hr />
+      <h2>Saved Records</h2>
+      <ul>
+        {students.map((student) => (
+          <li key={student.id}>
+            <strong>{student.name}</strong> - {student.course} (Year {student.yearLevel})
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
