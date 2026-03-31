@@ -1,120 +1,99 @@
 import React, { useState, useEffect } from 'react';
-import { db } from './firebase'; 
-import { collection, addDoc, onSnapshot, query, orderBy } from "firebase/firestore";
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { db } from './firebase';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
 import './App.css';
 
-function App() {
-  // 1. State for Form Inputs (Name, Course, Year Level)
+// --- PAGE 1: THE FORM ---
+function StudentForm() {
   const [name, setName] = useState("");
   const [course, setCourse] = useState("");
-  const [yearLevel, setYearLevel] = useState("1st Year");
-  
-  // 2. State for Displaying Records
-  const [students, setStudents] = useState([]);
+  const [year, setYear] = useState("1st Year");
+  const [reason, setReason] = useState("Submitting Homework");
+  const navigate = useNavigate();
 
-  // 3. Real-time Listener (Retrieves all saved records) [cite: 618]
-  useEffect(() => {
-    const q = query(collection(db, "students"), orderBy("name", "asc"));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const studentArr = [];
-      querySnapshot.forEach((doc) => {
-        studentArr.push({ ...doc.data(), id: doc.id });
-      });
-      setStudents(studentArr);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // 4. Save Function (Writes data to Firestore) [cite: 617]
   const handleSave = async (e) => {
     e.preventDefault();
-    if (name.trim() !== "" && course.trim() !== "") {
-      try {
-        await addDoc(collection(db, "students"), {
-          name: name,
-          course: course,
-          yearLevel: yearLevel,
-          createdAt: new Date().toISOString()
-        });
-        // Clear fields after saving
-        setName("");
-        setCourse("");
-        setYearLevel("1st Year");
-      } catch (error) {
-        console.error("Error adding document: ", error);
-      }
-    }
+    await addDoc(collection(db, "students"), {
+      name, course, year, reason,
+      timestamp: serverTimestamp() // Adds the exact time [cite: 544]
+    });
+    navigate('/records'); // Moves to the second page automatically
   };
 
   return (
-    <div className="container">
-      <div className="glass-container">
-        <h1 className="gradient-text">Student Records</h1>
-        <p className="subtitle">Platform Technology Lab Exercise</p>
-        
-        {/* --- INPUT FORM --- [cite: 613] */}
-        <form onSubmit={handleSave} className="input-section">
-          <div className="form-group">
-            <label>Student Name</label>
-            <input 
-              value={name} 
-              onChange={(e) => setName(e.target.value)} 
-              placeholder="Enter full name" 
-              className="sleek-input"
-              required 
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Course</label>
-            <input 
-              value={course} 
-              onChange={(e) => setCourse(e.target.value)} 
-              placeholder="Enter course (e.g. BSIT)" 
-              className="sleek-input"
-              required 
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Year Level</label>
-            <select 
-              value={yearLevel} 
-              onChange={(e) => setYearLevel(e.target.value)}
-              className="sleek-input"
-            >
-              <option value="1st Year">1st Year</option>
-              <option value="2nd Year">2nd Year</option>
-              <option value="3rd Year">3rd Year</option>
-              <option value="4th Year">4th Year</option>
-            </select>
-          </div>
-
-          <button type="submit" className="gradient-btn">
-            Save Student Record
-          </button>
-        </form>
-
-        {/* --- DISPLAY SECTION --- [cite: 618] */}
-        <div className="notes-list">
-          <h2 className="gradient-text" style={{fontSize: '1.5rem', marginTop: '20px'}}>Saved Records</h2>
-          {students.length === 0 ? (
-            <p className="empty-text">No records found. Add a student above!</p>
-          ) : (
-            students.map((student) => (
-              <div key={student.id} className="note-card">
-                <div className="note-content">
-                  <p className="note-text" style={{fontWeight: 'bold'}}>{student.name}</p>
-                  <p className="timestamp">{student.course} • {student.yearLevel}</p>
-                </div>
-              </div>
-            ))
-          )}
+    <div className="glass-card">
+      <h1 className="moon-header">Lunar Registry</h1>
+      <form onSubmit={handleSave}>
+        <div className="form-group">
+          <label>Full Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
-      </div>
+        <div className="form-group">
+          <label>Course</label>
+          <input value={course} onChange={(e) => setCourse(e.target.value)} required />
+        </div>
+        <div className="form-group">
+          <label>Year Level</label>
+          <select value={year} onChange={(e) => setYear(e.target.value)}>
+            <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Reason for Submission</label>
+          <select value={reason} onChange={(e) => setReason(e.target.value)}>
+            <option>Submitting Homework</option>
+            <option>Returning Lab Equipment</option>
+            <option>Consultation</option>
+          </select>
+        </div>
+        <button type="submit" className="submit-btn">Submit to Cloud</button>
+      </form>
+      <Link to="/records" className="nav-link">View All Records →</Link>
     </div>
   );
 }
 
-// CRITICAL: The default export Vercel was looking for!
+// --- PAGE 2: THE RECORDS ---
+function RecordsList() {
+  const [students, setStudents] = useState([]);
+
+  useEffect(() => {
+    const q = query(collection(db, "students"), orderBy("timestamp", "desc"));
+    return onSnapshot(q, (snapshot) => {
+      setStudents(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+    });
+  }, []);
+
+  return (
+    <div className="glass-card" style={{ maxWidth: '700px' }}>
+      <h1 className="moon-header">Registry Records</h1>
+      {students.map((s) => (
+        <div key={s.id} className="record-card">
+          <h3 style={{margin: 0}}>{s.name} <span style={{fontSize: '0.8rem', color: '#6c5ce7'}}>({s.course})</span></h3>
+          <p style={{margin: '10px 0', color: '#bbb'}}>{s.reason}</p>
+          <span className="timestamp">
+            {s.timestamp?.toDate().toLocaleString() || "Syncing..."}
+          </span>
+        </div>
+      ))}
+      <Link to="/" className="nav-link">← Back to Form</Link>
+    </div>
+  );
+}
+
+// --- MAIN WRAPPER ---
+function App() {
+  return (
+    <Router>
+      <div className="app-container">
+        <Routes>
+          <Route path="/" element={<StudentForm />} />
+          <Route path="/records" element={<RecordsList />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
+
 export default App;
