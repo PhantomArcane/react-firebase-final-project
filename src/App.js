@@ -1,62 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { db } from './firebase'; // Ensure your firebase.js exports 'db'
-import { collection, addDoc, onSnapshot, query, orderBy } from "firebase/firestore";
+// ... (imports at the top)
+import './App.css';
 
 function App() {
-  // 1. State for Form Inputs
-  const [name, setName] = useState("");
-  const [course, setCourse] = useState("");
-  const [yearLevel, setYearLevel] = useState("1");
-  
-  // 2. State for Displaying Records
-  const [students, setStudents] = useState([]);
-
-  // 3. Effect to Retrieve Records from Firestore in Real-time
-  useEffect(() => {
-    const q = query(collection(db, "students"), orderBy("name", "asc"));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const studentArr = [];
-      querySnapshot.forEach((doc) => {
-        studentArr.push({ ...doc.data(), id: doc.id });
-      });
-      setStudents(studentArr);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // 4. Function to Save Data to Firestore
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (name !== "" && course !== "") {
-      await addDoc(collection(db, "students"), {
-        name: name,
-        course: course,
-        yearLevel: yearLevel,
-      });
-      // Clear fields after saving
-      setName("");
-      setCourse("");
-    }
-  };
+  // ... (keep all your state and logic from before)
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1>Student Record Form</h1>
+    <div className="container">
+      <h1>🎓 Student Records</h1>
       
-      {/* --- INPUT FORM --- */}
-      <form onSubmit={handleSave} style={{ marginBottom: '30px' }}>
-        <div>
-          <label>Name: </label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full Name" required />
+      <form onSubmit={handleSave}>
+        <div className="form-group">
+          <label>Full Name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. John Doe" required />
         </div>
-        <br />
-        <div>
-          <label>Course: </label>
-          <input value={course} onChange={(e) => setCourse(e.target.value)} placeholder="Course Name" required />
+
+        <div className="form-group">
+          <label>Course</label>
+          <input value={course} onChange={(e) => setCourse(e.target.value)} placeholder="e.g. BSIT" required />
         </div>
-        <br />
-        <div>
-          <label>Year Level: </label>
+
+        <div className="form-group">
+          <label>Year Level</label>
           <select value={yearLevel} onChange={(e) => setYearLevel(e.target.value)}>
             <option value="1">1st Year</option>
             <option value="2">2nd Year</option>
@@ -64,22 +28,21 @@ function App() {
             <option value="4">4th Year</option>
           </select>
         </div>
-        <br />
-        <button type="submit">Save Student</button>
+
+        <button type="submit">➕ Save Record</button>
       </form>
 
-      {/* --- DISPLAY SECTION --- */}
-      <hr />
-      <h2>Saved Records</h2>
+      <hr style={{ margin: '30px 0', opacity: '0.2' }} />
+      
+      <h2>📋 Saved Students</h2>
       <ul>
         {students.map((student) => (
-          <li key={student.id}>
-            <strong>{student.name}</strong> - {student.course} (Year {student.yearLevel})
+          <li key={student.id} className="record-item">
+            <strong>{student.name}</strong><br />
+            <span style={{ color: '#777' }}>{student.course} • Year {student.yearLevel}</span>
           </li>
         ))}
       </ul>
     </div>
   );
 }
-
-export default App;
