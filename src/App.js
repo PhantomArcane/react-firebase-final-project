@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import './App.css';
 
-// --- PAGE 1: THE FORM ---
+// --- PAGE 1: THE FORM (Stays the same) ---
 function StudentForm() {
   const [name, setName] = useState("");
   const [course, setCourse] = useState("");
@@ -16,9 +16,9 @@ function StudentForm() {
     e.preventDefault();
     await addDoc(collection(db, "students"), {
       name, course, year, reason,
-      timestamp: serverTimestamp() // Adds the exact time [cite: 544]
+      timestamp: serverTimestamp()
     });
-    navigate('/records'); // Moves to the second page automatically
+    navigate('/records');
   };
 
   return (
@@ -40,7 +40,7 @@ function StudentForm() {
           </select>
         </div>
         <div className="form-group">
-          <label>Reason for Submission</label>
+          <label>Reason</label>
           <select value={reason} onChange={(e) => setReason(e.target.value)}>
             <option>Submitting Homework</option>
             <option>Returning Lab Equipment</option>
@@ -54,9 +54,11 @@ function StudentForm() {
   );
 }
 
-// --- PAGE 2: THE RECORDS ---
+// --- PAGE 2: THE RECORDS (Now with Delete & Edit!) ---
 function RecordsList() {
   const [students, setStudents] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
 
   useEffect(() => {
     const q = query(collection(db, "students"), orderBy("timestamp", "desc"));
@@ -65,16 +67,56 @@ function RecordsList() {
     });
   }, []);
 
+  const deleteRecord = async (id) => {
+    if (window.confirm("Are you sure you want to delete this record?")) {
+      await deleteDoc(doc(db, "students", id));
+    }
+  };
+
+  const startEdit = (student) => {
+    setEditingId(student.id);
+    setEditName(student.name);
+  };
+
+  const saveEdit = async (id) => {
+    const studentDoc = doc(db, "students", id);
+    await updateDoc(studentDoc, { name: editName });
+    setEditingId(null);
+  };
+
   return (
     <div className="glass-card" style={{ maxWidth: '700px' }}>
       <h1 className="moon-header">Registry Records</h1>
       {students.map((s) => (
         <div key={s.id} className="record-card">
-          <h3 style={{margin: 0}}>{s.name} <span style={{fontSize: '0.8rem', color: '#6c5ce7'}}>({s.course})</span></h3>
-          <p style={{margin: '10px 0', color: '#bbb'}}>{s.reason}</p>
-          <span className="timestamp">
-            {s.timestamp?.toDate().toLocaleString() || "Syncing..."}
-          </span>
+          {editingId === s.id ? (
+            <div className="edit-section">
+              <input 
+                className="sleek-input" 
+                value={editName} 
+                onChange={(e) => setEditName(e.target.value)} 
+                autoFocus
+              />
+              <button onClick={() => saveEdit(s.id)} className="submit-btn" style={{marginTop: '10px', padding: '8px'}}>Save</button>
+              <button onClick={() => setEditingId(null)} className="nav-link" style={{background: 'none', border: 'none', cursor: 'pointer'}}>Cancel</button>
+            </div>
+          ) : (
+            <>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                <div>
+                  <h3 style={{margin: 0}}>{s.name} <span style={{fontSize: '0.8rem', color: '#6c5ce7'}}>({s.course})</span></h3>
+                  <p style={{margin: '10px 0', color: '#bbb'}}>{s.reason} • {s.year}</p>
+                </div>
+                <div style={{display: 'flex', gap: '10px'}}>
+                  <button onClick={() => startEdit(s)} style={{background: 'none', border: 'none', color: '#a29bfe', cursor: 'pointer'}}>Edit</button>
+                  <button onClick={() => deleteRecord(s.id)} style={{background: 'none', border: 'none', color: '#ff7675', cursor: 'pointer'}}>Delete</button>
+                </div>
+              </div>
+              <span className="timestamp">
+                {s.timestamp?.toDate().toLocaleString() || "Syncing..."}
+              </span>
+            </>
+          )}
         </div>
       ))}
       <Link to="/" className="nav-link">← Back to Form</Link>
@@ -82,7 +124,6 @@ function RecordsList() {
   );
 }
 
-// --- MAIN WRAPPER ---
 function App() {
   return (
     <Router>
